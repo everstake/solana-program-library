@@ -2852,6 +2852,81 @@ impl Processor {
         Ok(())
     }
 
+    /// Processes [ReallocateStakePoolAccountSpace](enum.Instruction.html).
+    #[inline(never)] // needed to avoid stack size violation
+    fn process_reallocate_stake_pool_account_space(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        lamports: u64,
+        new_space: u64,
+    ) -> ProgramResult {    // TODO Проверка, что новы спейс точно больше предыдущег  и на максимальное значение
+        let account_info_iter = &mut accounts.iter();
+        let stake_pool_info = next_account_info(account_info_iter)?;
+        let manager_info = next_account_info(account_info_iter)?;
+        let from_user_lamports_info = next_account_info(account_info_iter)?;
+        let system_program_info = next_account_info(account_info_iter)?;
+
+
+        msg!("QQQQQQQQQQQQQQQQQQQQQ");
+        msg!("{:?}", system_program_info.key);
+        msg!("{:?}", stake_pool_info.owner);
+        msg!("QQQQQQQQQQQQQQQQQQQQQ");
+
+
+        msg!("{:?}", stake_pool_info.data_len());
+        stake_pool_info.realloc(new_space as usize, false)?;
+        msg!("{:?}", stake_pool_info.data_len());
+
+
+
+
+        // check_account_owner(stake_pool_info, program_id)?;
+        // let mut stake_pool = try_from_slice_unchecked::<StakePool>(&stake_pool_info.data.borrow())?;
+        // if !stake_pool.is_valid() {
+        //     return Err(StakePoolError::InvalidState.into());
+        // }
+
+        // if stake_pool.last_update_epoch < Clock::get()?.epoch {
+        //     return Err(StakePoolError::StakeListAndPoolOutOfDate.into());
+        // }
+
+        // stake_pool.check_authority_withdraw(
+        //     withdraw_authority_info.key,
+        //     program_id,
+        //     stake_pool_info.key,
+        // )?;
+        // stake_pool.check_sol_deposit_authority(sol_deposit_authority_info)?;
+        // stake_pool.check_reserve_stake(reserve_stake_account_info)?;
+
+        // stake_pool.check_manager(manager_info)?;
+
+        // check_system_program(system_program_info.key)?;
+
+        // if deposit_lamports < MINIMUM_DEPOSIT {
+        //     return Err(StakePoolError::DepositTooSmall.into());
+        // }
+
+        // Self::sol_transfer(
+        //     from_user_lamports_info.clone(),
+        //     stake_pool_info.clone(),
+        //     system_program_info.clone(),
+        //     lamports,
+        // )?;
+
+        // stake_pool.total_lamports = stake_pool
+        //     .total_lamports
+        //     .checked_add(deposit_lamports)
+        //     .ok_or(StakePoolError::CalculationFailure)?;
+        // stake_pool.total_lamports_liquidity = stake_pool
+        //     .total_lamports_liquidity
+        //     .checked_add(deposit_lamports)
+        //     .ok_or(StakePoolError::CalculationFailure)?;
+
+        // stake_pool.serialize(&mut *stake_pool_info.data.borrow_mut())?;
+
+        Ok(())
+    }
+
     /// Processes [Instruction](enum.Instruction.html).
     pub fn process(program_id: &Pubkey, accounts: &[AccountInfo], input: &[u8]) -> ProgramResult {
         let instruction = StakePoolInstruction::try_from_slice(input)?;
@@ -2977,6 +3052,13 @@ impl Processor {
             StakePoolInstruction::DepositLiquiditySol(lamports) => {
                 msg!("Instruction: DepositLiquiditySol");
                 Self::process_deposit_liquidity_sol(program_id, accounts, lamports)
+            }
+            StakePoolInstruction::ReallocateStakePoolAccountSpace {
+                lamports,
+                space,
+            } => {
+                msg!("Instruction: ReallocateStakePoolAccountSpace");
+                Self::process_reallocate_stake_pool_account_space(program_id, accounts, lamports, space)
             }
         }
     }
