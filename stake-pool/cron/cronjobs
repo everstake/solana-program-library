@@ -1,3 +1,5 @@
-0,15,30,45 * * * * /home/stakepool/cron/update-stake-pool.sh && curl -fsS -m 10 --retry 5 -o /dev/null https://hc-ping.com/1b1f2580-4797-4070-adda-9ec177a8632b
-0 */3 * * * /home/stakepool/solana-program-library/target/release/spl-stake-pool dao-strategy-distribute-community-tokens GUAMR8ciiaijraJeLDEDrFVaueLm9YzWWY9R7CBPL9rA
-0 0 1 * * /home/stakepool/solana-program-library/target/release/spl-stake-pool show-metrics-deposit-referrer GUAMR8ciiaijraJeLDEDrFVaueLm9YzWWY9R7CBPL9rA --last-month > /home/stakepool/stake-pool-logs/"Referral program metrics $(date +\%Y-\%m-\%d_\%H:\%M:\%S).csv"
+0,15,30,45 * * * * sh /home/stakepool/solana-program-library/stake-pool/cron/update-stake-pool.sh && curl -fsS -m 10 --retry 5 -o /dev/null https://hc-ping.com/1b1f2580-4797-4070-adda-9ec177a8632b
+0 */3 * * * /home/stakepool/solana-program-library/target/release/spl-stake-pool dao-strategy-distribute-community-tokens w55eR1rNUjD1hLxvxsVtBDm98iPdSWTbLmTh8B1WA4k
+0 */3 * * * /home/stakepool/solana-program-library/target/release/spl-stake-pool dao-strategy-distribute-community-tokens EEx8JxE1hhpnQw1fLwMY1aLsYdCcphZyrYC3SLSjvx5R
+0 0 1 * * /home/stakepool/solana-program-library/target/release/spl-stake-pool show-metrics-deposit-referrer w55eR1rNUjD1hLxvxsVtBDm98iPdSWTbLmTh8B1WA4k --last-month > /home/stakepool/stake-pool-logs/"w55eR1rNUjD1hLxvxsVtBDm98iPdSWTbLmTh8B1WA4k Referral program metrics $(date +\%Y-\%m-\%d_\%H:\%M:\%S).csv"
+0 0 1 * * /home/stakepool/solana-program-library/target/release/spl-stake-pool show-metrics-deposit-referrer EEx8JxE1hhpnQw1fLwMY1aLsYdCcphZyrYC3SLSjvx5R --last-month > /home/stakepool/stake-pool-logs/"EEx8JxE1hhpnQw1fLwMY1aLsYdCcphZyrYC3SLSjvx5R Referral program metrics $(date +\%Y-\%m-\%d_\%H:\%M:\%S).csv"
