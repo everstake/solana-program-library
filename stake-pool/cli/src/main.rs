@@ -414,7 +414,7 @@ struct ValidatorsInfo {
 impl ValidatorsInfo {
     fn url_get_current_validators() -> String {
         format!("https://api.stakesolana.app/v1/pool-validators/Eversol?sort=apy&desc=true&offset=0&limit={}",
-            VALIDATORS_QUANTITY,
+            VALIDATORS_QUANTITY+10, // increased the limit in case the actual number differs from the defined one
         )
     }
     
@@ -1185,20 +1185,16 @@ fn increase_validator_stake(
     let stake_rent = config
         .rpc_client
         .get_minimum_balance_for_rent_exemption(std::mem::size_of::<stake::state::StakeState>())?;
-
-    // it's up to the manager if they want to use liquidity sols.
-    // TODO: remove this snippet or mke it optional
-/*
     
     if let None = config
         .rpc_client
         .get_balance(&stake_pool.reserve_stake)?
-        .saturating_sub(stake_rent)
-        .checked_sub(stake_pool.total_lamports_liquidity)
+        .checked_sub(2*stake_rent) // we split reserve stake so we should pay the double rent
+//        .checked_sub(stake_pool.total_lamports_liquidity)
     {
         return Err("The number of sol on the stake pool's reserve account is less than the number of liquidity sol".into());
     }
-*/
+
     let mut signers = vec![config.fee_payer.as_ref(), config.staker.as_ref()];
     unique_signers!(signers);
     let transaction = checked_transaction_with_signers(
@@ -2199,6 +2195,7 @@ fn command_dao_strategy_deposit_sol(
     pool_token_receiver_account: &Option<Pubkey>,
     referrer_address: &Option<Pubkey>,
     amount: f64,
+    use_old_referral_program: bool,
 ) -> CommandResult {
     if !config.no_update {
         command_update(config, stake_pool_address, false, false)?;
@@ -2344,27 +2341,49 @@ fn command_dao_strategy_deposit_sol(
         }
 
         if let Some(referrer_address) = referrer_address {
-            spl_stake_pool::instruction::dao_strategy_deposit_sol_with_authority_and_referrer(
-                &spl_stake_pool::id(),
-                stake_pool_address,
-                &deposit_authority.pubkey(),
-                &pool_withdraw_authority,
-                &stake_pool.reserve_stake,
-                &user_sol_transfer.pubkey(),
-                &pool_token_receiver_account,
-                &dao_community_token_receiver_account,
-                &stake_pool.manager_fee_account,
-                &referrer_address,
-                &referrer_list_address,
-                &metrics_deposit_referrer_pubkey,
-                &metrics_deposit_referrer_counter_pubkey,
-                &stake_pool.pool_mint,
-                &spl_token::id(),
-                &community_token_staking_rewards_dto_pubkey,
-                &from_pubkey,
-                &community_token_dto_pubkey,
-                amount,
-            )
+            if use_old_referral_program {
+                spl_stake_pool::instruction::dao_strategy_deposit_sol_with_authority_and_referrer(
+                    &spl_stake_pool::id(),
+                    stake_pool_address,
+                    &deposit_authority.pubkey(),
+                    &pool_withdraw_authority,
+                    &stake_pool.reserve_stake,
+                    &user_sol_transfer.pubkey(),
+                    &pool_token_receiver_account,
+                    &dao_community_token_receiver_account,
+                    &stake_pool.manager_fee_account,
+                    &referrer_address,
+                    &referrer_list_address,
+                    &metrics_deposit_referrer_pubkey,
+                    &metrics_deposit_referrer_counter_pubkey,
+                    &stake_pool.pool_mint,
+                    &spl_token::id(),
+                    &community_token_staking_rewards_dto_pubkey,
+                    &from_pubkey,
+                    &community_token_dto_pubkey,
+                    amount,
+                )
+            } else {
+                spl_stake_pool::instruction::dao_strategy_deposit_sol_with_authority_and_referrer2(
+                    &spl_stake_pool::id(),
+                    stake_pool_address,
+                    &deposit_authority.pubkey(),
+                    &pool_withdraw_authority,
+                    &stake_pool.reserve_stake,
+                    &user_sol_transfer.pubkey(),
+                    &pool_token_receiver_account,
+                    &dao_community_token_receiver_account,
+                    &stake_pool.manager_fee_account,
+                    &referrer_address,
+                    &referrer_list_address,
+                    &stake_pool.pool_mint,
+                    &spl_token::id(),
+                    &community_token_staking_rewards_dto_pubkey,
+                    &from_pubkey,
+                    &community_token_dto_pubkey,
+                    amount,
+                )                
+            }
         } else {
             spl_stake_pool::instruction::dao_strategy_deposit_sol_with_authority(
                 &spl_stake_pool::id(),
@@ -2386,26 +2405,47 @@ fn command_dao_strategy_deposit_sol(
         }
     } else {
         if let Some(referrer_address) = referrer_address {
-            spl_stake_pool::instruction::dao_strategy_deposit_sol_with_referrer(
-                &spl_stake_pool::id(),
-                stake_pool_address,
-                &pool_withdraw_authority,
-                &stake_pool.reserve_stake,
-                &user_sol_transfer.pubkey(),
-                &pool_token_receiver_account,
-                &dao_community_token_receiver_account,
-                &stake_pool.manager_fee_account,
-                &referrer_address,
-                &referrer_list_address,
-                &metrics_deposit_referrer_pubkey,
-                &metrics_deposit_referrer_counter_pubkey,
-                &stake_pool.pool_mint,
-                &spl_token::id(),
-                &community_token_staking_rewards_dto_pubkey,
-                &from_pubkey,
-                &community_token_dto_pubkey,
-                amount,
-            )
+            if use_old_referral_program {
+                spl_stake_pool::instruction::dao_strategy_deposit_sol_with_referrer(
+                    &spl_stake_pool::id(),
+                    stake_pool_address,
+                    &pool_withdraw_authority,
+                    &stake_pool.reserve_stake,
+                    &user_sol_transfer.pubkey(),
+                    &pool_token_receiver_account,
+                    &dao_community_token_receiver_account,
+                    &stake_pool.manager_fee_account,
+                    &referrer_address,
+                    &referrer_list_address,
+                    &metrics_deposit_referrer_pubkey,
+                    &metrics_deposit_referrer_counter_pubkey,
+                    &stake_pool.pool_mint,
+                    &spl_token::id(),
+                    &community_token_staking_rewards_dto_pubkey,
+                    &from_pubkey,
+                    &community_token_dto_pubkey,
+                    amount,
+                )
+            } else {
+                spl_stake_pool::instruction::dao_strategy_deposit_sol_with_referrer2(
+                    &spl_stake_pool::id(),
+                    stake_pool_address,
+                    &pool_withdraw_authority,
+                    &stake_pool.reserve_stake,
+                    &user_sol_transfer.pubkey(),
+                    &pool_token_receiver_account,
+                    &dao_community_token_receiver_account,
+                    &stake_pool.manager_fee_account,
+                    &referrer_address,
+                    &referrer_list_address,
+                    &stake_pool.pool_mint,
+                    &spl_token::id(),
+                    &community_token_staking_rewards_dto_pubkey,
+                    &from_pubkey,
+                    &community_token_dto_pubkey,
+                    amount,
+                )
+            }
         } else {
             spl_stake_pool::instruction::dao_strategy_deposit_sol(
                 &spl_stake_pool::id(),
@@ -2498,7 +2538,7 @@ fn command_list(config: &Config, stake_pool_address: &Pubkey) -> CommandResult {
 
 
     let mut dao_details = None;
-    let dao_state = get_dao_state(&config.rpc_client, stake_pool_address).unwrap_or_default();  
+    let dao_state = get_dao_state(&config.rpc_client, stake_pool_address).unwrap_or_default();
     if dao_state {
         dao_details = Some(CliDaoDetails::from((
             get_community_token(&config.rpc_client, stake_pool_address)?.to_string(),
@@ -2648,7 +2688,12 @@ fn command_update(
 
     for stake_key in &stake_accounts {
         if *stake_key != stake_pool.reserve_stake {
-            let stake_state = get_stake_state(&config.rpc_client, stake_key)?;
+            let stake_state = get_stake_state(&config.rpc_client, stake_key);
+            if let Err(e) = stake_state {
+                println!("Ignoring: can't get stake state for {} due to the following error: {}", stake_key, e);
+                continue;
+            }
+            let stake_state = stake_state.unwrap();
             match stake_state {
                 stake::state::StakeState::Uninitialized
                 | stake::state::StakeState::RewardsPool => {
@@ -4001,79 +4046,115 @@ fn command_withdraw_liquidity_sol(
     Ok(())
 }
 
-fn command_distribute_stake(
+
+struct StakeDistributionInfo {
+    validators_stake_distribution_vec: Vec<ValidatorStakeDistributionData>
+}
+
+impl StakeDistributionInfo {
+    pub fn new() -> Self {
+        Self {
+            validators_stake_distribution_vec: vec![],
+        }
+    }
+
+    pub fn add_validator_stake_distribution_data(
+        &mut self,
+        stake_info: spl_stake_pool::state::ValidatorStakeInfo,
+        pool_data: PoolValidatorsData,
+        lamports_distributed: u64,
+        lamports_should_be_distributed: u64,
+        lamports_to_distribute: u64,        
+    ) {
+        self.validators_stake_distribution_vec.push(ValidatorStakeDistributionData::new(
+            stake_info,
+            pool_data,
+            lamports_distributed,
+            lamports_should_be_distributed,
+            lamports_to_distribute,            
+        ))
+    }
+
+    pub fn print(&self) {
+        for (num, item_data) in self.validators_stake_distribution_vec.iter().enumerate() {
+            println!("{}.{} distributed {}, should be distributed {}, filled {:.2}%, to distribute {}", 
+                num+1, item_data.pool_data.name, 
+                native_token::lamports_to_sol(item_data.lamports_distributed),
+                native_token::lamports_to_sol(item_data.lamports_should_be_distributed),
+                (item_data.lamports_distributed as f64/item_data.lamports_should_be_distributed as f64) * 100.0,
+                native_token::lamports_to_sol(item_data.lamports_to_distribute),
+            )
+        }
+    }
+}
+
+struct ValidatorStakeDistributionData {
+    stake_info: spl_stake_pool::state::ValidatorStakeInfo,
+    pool_data: PoolValidatorsData,
+    lamports_distributed: u64,
+    lamports_should_be_distributed: u64,
+    lamports_to_distribute: u64,
+}
+
+impl ValidatorStakeDistributionData {
+    pub fn new(
+        stake_info: spl_stake_pool::state::ValidatorStakeInfo,
+        pool_data: PoolValidatorsData,
+        lamports_distributed: u64,
+        lamports_should_be_distributed: u64,
+        lamports_to_distribute: u64,
+    ) -> Self {
+        Self {
+            stake_info,
+            pool_data,
+            lamports_distributed,
+            lamports_should_be_distributed,
+            lamports_to_distribute,            
+        }
+    }
+}
+
+fn get_stake_distribution_info(
     config: &Config,
     stake_pool_address: &Pubkey,
-) -> CommandResult {
+    consume_liquidity: f64,
+    threshold: f64,    
+) -> Result<(StakeDistributionInfo,bool), Error> {
+    const DISTRIBUTION_MULTIPLIER: f64 = 1.5;
+
     let stake_pool = get_stake_pool(&config.rpc_client, stake_pool_address)?;
-
-    let epoch = config.rpc_client.get_epoch_info()?.epoch;
-
     let validator_list = get_validator_list(&config.rpc_client, &stake_pool.validator_list)?;
-    let contract_validators_quantity = validator_list.validators.len();
-
     let response = reqwest::blocking::get(ValidatorsInfo::url_get_current_validators())?;
     let validators_api_response = serde_json::from_slice::<'_, PoolValidatorsApiResponse>(&response.bytes()?[..])?;
+    let consume_liquidity_lamports = native_token::sol_to_lamports(consume_liquidity);
+    let threshold_lamports = native_token::sol_to_lamports(threshold);
 
-    if contract_validators_quantity == 0 {
-        println!("There are no validators in validator list.");
-
-        return Ok(());
+    if consume_liquidity_lamports >= stake_pool.total_lamports_liquidity {
+        return Err("Consume liquidity must be less than total liquidity".into())
     }
-
-    let mut total_score_for_distribution_strategy: u128 = 0;
-    let mut contract_existing_validators_prepared_for_distribution_full_data: Vec<(&ValidatorStakeInfo, &PoolValidatorsData)> = vec![];
-    '_a: for validator_stake_info in validator_list.validators.iter() {
-        let mut is_exist = false;
-        'b: for validators_data in validators_api_response.data.iter() {
-            if validator_stake_info.vote_account_address.to_string() == validators_data.vote_pk {
-                if validator_stake_info.last_update_epoch != epoch {
-                    return Err(
-                        format!(
-                            "{} validator is not updated.",
-                            validator_stake_info.vote_account_address
-                        ).into()
-                    );
-                }
-
-                total_score_for_distribution_strategy = total_score_for_distribution_strategy + u128::try_from(validators_data.score)?;
-                is_exist = true;
-                if validator_stake_info.transient_stake_lamports == 0 {
-                    contract_existing_validators_prepared_for_distribution_full_data.push((validator_stake_info, validators_data));
-                }
-
-                break 'b;
-            }
-        }
-        if !is_exist {
-            return Err(
-                format!(
-                    "Desynchronized state. {} validator is not present in the backend, therefore we cannot take information.",
-                    validator_stake_info.vote_account_address
-                ).into()
-            );
-        }
+    if validator_list.validators.len() == 0 || validators_api_response.data.len() == 0 || validators_api_response.data.len() != validator_list.validators.len(){
+        return Err("The backend and the program are unsynchronized or validators list is empty".into())
     }
-    if contract_existing_validators_prepared_for_distribution_full_data.is_empty() {
-        return Err(
-            format!(
-                "Unable to make distribution. Since all validators have transient stake-accounts.",
-            ).into()
-        );
-    }
-    contract_existing_validators_prepared_for_distribution_full_data.sort_by(
-        |left: &(&ValidatorStakeInfo, &PoolValidatorsData), right: &(&ValidatorStakeInfo, &PoolValidatorsData)| -> Ordering {
-            if left.1.apy < right.1.apy {
-                Ordering::Greater
-            } else {
-                if left.1.apy > right.1.apy {
-                    Ordering::Less
-                } else {
-                    Ordering::Equal
-                }
-            }
-        }
+    let mut validators_aggregated_data: Vec<(&ValidatorStakeInfo, &PoolValidatorsData)> = vec![];
+
+    for sp_validator in &validator_list.validators {
+        let found_validator = validators_api_response.data.iter().find(|resp_validator| resp_validator.vote_pk == sp_validator.vote_account_address.to_string()).ok_or(        
+            format!("The backend and the program are unsynchronized: {} validator is missing on the backend", sp_validator.vote_account_address)
+        )?;
+        validators_aggregated_data.push((sp_validator, found_validator));
+    };
+
+    validators_aggregated_data.sort_by(
+        |a, b| b.1.apy.partial_cmp(&a.1.apy).unwrap()
     );
+
+    let average_apy = 100.0 * validators_aggregated_data.iter().map(|x| x.1.apy).sum::<f64>() / validators_aggregated_data.len() as f64;
+    let max_negative_deviation = 100.0 * validators_aggregated_data.last().unwrap().1.apy - average_apy;
+    let distribution_coefficients = validators_aggregated_data.iter().map(
+        |x| 100.0 * x.1.apy - average_apy - max_negative_deviation * DISTRIBUTION_MULTIPLIER
+    );
+    let distribution_coefficients_total = distribution_coefficients.clone().sum::<f64>();
+    let distribution_shares: Vec<f64> = distribution_coefficients.map(|x| x / distribution_coefficients_total).collect();
 
     let stake_rent = config
         .rpc_client
@@ -4082,106 +4163,150 @@ fn command_distribute_stake(
         .rpc_client
         .get_balance(&stake_pool.reserve_stake)?
         .saturating_sub(stake_rent);
-    if active_lamports > stake_pool.total_lamports_liquidity {
-        let active_lamports_for_distribution = active_lamports - stake_pool.total_lamports_liquidity;
-        if active_lamports_for_distribution < MINIMUM_ACTIVE_STAKE {
-            println!("Not enough Sols for distribution.");
 
-            return Ok(());
-        }
-        let mut active_lamports_for_distribution_ = active_lamports_for_distribution;
-        let mut validators_for_distribution_data: Vec<(&Pubkey, u64)> = vec![];
-        let mut amount_will_be_distributed: u64 = 0;
-        'd: for (validator_stake_info, validators_data) in contract_existing_validators_prepared_for_distribution_full_data.iter() {
-            let validator_total_lamports_should_be_distributed = u64::try_from(
-                (stake_pool.total_lamports as u128)
-                    .checked_mul(u128::try_from(validators_data.score)?)
-                    .ok_or("Calculation error")?
-                    .checked_div(total_score_for_distribution_strategy)
-                    .ok_or("Calculation error")?,
-            )?;
-            if validator_total_lamports_should_be_distributed >= validator_stake_info.active_stake_lamports {
-                let lamports_to_distribute_additionally = validator_total_lamports_should_be_distributed - validator_stake_info.active_stake_lamports;
-                if lamports_to_distribute_additionally > MINIMUM_ACTIVE_STAKE {
-                    if active_lamports_for_distribution_ >= lamports_to_distribute_additionally {
-                        validators_for_distribution_data.push((&validator_stake_info.vote_account_address, lamports_to_distribute_additionally));
-                        amount_will_be_distributed = amount_will_be_distributed + lamports_to_distribute_additionally;
-                        active_lamports_for_distribution_ = active_lamports_for_distribution_ - lamports_to_distribute_additionally;
-                    } else {
-                        if active_lamports_for_distribution_ >= MINIMUM_ACTIVE_STAKE {
-                            validators_for_distribution_data.push((&validator_stake_info.vote_account_address, active_lamports_for_distribution_));
-                            amount_will_be_distributed = amount_will_be_distributed + active_lamports_for_distribution_;
-                        }
-
-                        break 'd;
-                    }
-                }
-            }
-        }
-        if !validators_for_distribution_data.is_empty() {
-            '_e: for (i, (vote_address, lamports_for_distribution)) in validators_for_distribution_data.into_iter().enumerate() {
-                if i == 0 {
-                    increase_validator_stake(
-                        config,
-                        stake_pool_address,
-                        vote_address,
-                        lamports_for_distribution + active_lamports_for_distribution - amount_will_be_distributed
-                    )?;
-                } else {
-                    increase_validator_stake(
-                        config,
-                        stake_pool_address,
-                        vote_address,
-                        lamports_for_distribution
-                    )?;
-                }
-            }
-        } else {
-            increase_validator_stake(
-                config,
-                stake_pool_address,
-                &contract_existing_validators_prepared_for_distribution_full_data[0].0.vote_account_address,
-                active_lamports_for_distribution
-            )?;
-        }
+    let mut distribution_allowed = false;
+    let mut lamports_left = if active_lamports > stake_pool.total_lamports_liquidity.checked_sub(consume_liquidity_lamports).unwrap_or(u64::MAX) {
+        let active_lamports_for_distribution = active_lamports - (stake_pool.total_lamports_liquidity - consume_liquidity_lamports);
+        let active_lamports_for_distribution = active_lamports_for_distribution;
+        distribution_allowed = active_lamports_for_distribution > MINIMUM_ACTIVE_STAKE && active_lamports_for_distribution > threshold_lamports;
+        active_lamports_for_distribution
     } else {
-        if active_lamports == 0 {
-            return Ok(());
-        } else {
-            let mut lamports_for_liquidity_recovery = stake_pool.total_lamports_liquidity - active_lamports;
-            if lamports_for_liquidity_recovery < MINIMUM_ACTIVE_STAKE {
-                println!("Not enough Sols for distribution.");
+        0
+    };
+    let mut stake_distribution_info = StakeDistributionInfo::new();
 
-                return Ok(());
+    for ((validator_stake_info, validators_data), validator_share) in validators_aggregated_data.into_iter().zip(distribution_shares.iter()) {
+        let validator_lamports_from_distribution: u64 =
+            (validator_share * (stake_pool.total_lamports as u128)
+                .checked_add(consume_liquidity_lamports as u128)
+                .ok_or("Calculation error")? as f64) as u64;
+        
+        let mut lamports_to_distribute = 0;
+
+        if validator_lamports_from_distribution > validator_stake_info.active_stake_lamports + MINIMUM_ACTIVE_STAKE + stake_rent
+           && validator_stake_info.transient_stake_lamports == 0 {
+            let potential_lamports_to_distribute = validator_lamports_from_distribution - validator_stake_info.active_stake_lamports;
+
+            if lamports_left > potential_lamports_to_distribute {
+                lamports_left = lamports_left - potential_lamports_to_distribute;
+                lamports_to_distribute = potential_lamports_to_distribute
+            } else if lamports_left >= MINIMUM_ACTIVE_STAKE + stake_rent {
+                lamports_to_distribute = lamports_left;
+                lamports_left = 0
+            };
+        }
+
+        stake_distribution_info.add_validator_stake_distribution_data(
+            *validator_stake_info, 
+            validators_data.clone(),
+            validator_stake_info.active_stake_lamports, 
+            validator_lamports_from_distribution, 
+            lamports_to_distribute,
+        )
+    }
+
+    // corner case: there could be calculation inaccuracies or transient accounts on validators, 
+    // so we try to put what is left on a top-5 profitable validator
+    if lamports_left > 0 {
+        for (num, item_data) in stake_distribution_info.validators_stake_distribution_vec.iter().enumerate() {
+            if item_data.stake_info.transient_stake_lamports == 0 {
+                stake_distribution_info.validators_stake_distribution_vec[num].lamports_to_distribute += lamports_left;
+                break
             }
-            'g: for (validator_stake_info, _) in contract_existing_validators_prepared_for_distribution_full_data.iter().rev() {
-                if lamports_for_liquidity_recovery >= validator_stake_info.active_stake_lamports {
-                    if validator_stake_info.active_stake_lamports > MINIMUM_ACTIVE_STAKE {
-                        decrease_validator_stake(
-                            config,
-                            stake_pool_address,
-                            &validator_stake_info.vote_account_address,
-                            validator_stake_info.active_stake_lamports,
-                        )?;
-                        lamports_for_liquidity_recovery = lamports_for_liquidity_recovery - validator_stake_info.active_stake_lamports;
-                    }
-                } else {
-                    if lamports_for_liquidity_recovery >= MINIMUM_ACTIVE_STAKE {
-                        decrease_validator_stake(
-                            config,
-                            stake_pool_address,
-                            &validator_stake_info.vote_account_address,
-                            lamports_for_liquidity_recovery,
-                        )?;
-                    }
-
-                    break 'g;
-                }
+            if num >= 4 {
+                break
             }
         }
     }
 
-    Ok(())
+    Ok((stake_distribution_info, distribution_allowed))
+}
+
+fn command_distribute_stake(
+    config: &Config,
+    stake_pool_address: &Pubkey,
+    consume_liquidity: f64,
+    threshold: f64,
+    slots_before_epoch_end: u64,
+) -> CommandResult {
+    if slots_before_epoch_end !=0 {
+        let epoch_info = config.rpc_client.get_epoch_info()?;
+        let slots_left = epoch_info.slots_in_epoch.checked_sub(epoch_info.slot_index).ok_or("Calculation error")?;
+        if config.verbose {
+            println!("Allowed slots before epoch end {} slots in epoch {} current slot {}, epoch progress {:.2}%",
+                slots_before_epoch_end, epoch_info.slots_in_epoch, epoch_info.slot_index, (epoch_info.slot_index as f64/epoch_info.slots_in_epoch as f64)*100.0);
+        }
+        if slots_left > slots_before_epoch_end {
+            return Err(format!("Distribution can be performed only when {} or less slots left in the current epoch", slots_before_epoch_end).into())
+        }
+    }
+    if !config.no_update {
+        command_update(config, stake_pool_address, false, false)?;
+    }
+    const INSTRUCTIONS_IN_TRANSACTION: usize = 7;
+
+    let stake_pool = get_stake_pool(&config.rpc_client, stake_pool_address)?;
+    let stake_rent = config
+        .rpc_client
+        .get_minimum_balance_for_rent_exemption(std::mem::size_of::<stake::state::StakeState>())?;
+    let active_lamports = config
+        .rpc_client
+        .get_balance(&stake_pool.reserve_stake)?
+        .saturating_sub(stake_rent);
+    
+    let (stake_distribution_info, distribution_allowed) = get_stake_distribution_info(
+        config,
+        stake_pool_address,
+        consume_liquidity,
+        threshold       
+    )?;
+
+    if config.verbose {
+        stake_distribution_info.print();
+        println!("distribution allowed = {}", distribution_allowed)
+    }
+
+    if distribution_allowed { 
+        let mut instructions: Vec<_> = vec![];
+
+        for item_data in &stake_distribution_info.validators_stake_distribution_vec {
+            if item_data.lamports_to_distribute > stake_rent 
+               && item_data.stake_info.transient_stake_lamports == 0 {
+                instructions.push(
+                    spl_stake_pool::instruction::increase_validator_stake_with_vote(
+                        &spl_stake_pool::id(),
+                        &stake_pool,
+                        stake_pool_address,
+                        &item_data.stake_info.vote_account_address,
+                        item_data.lamports_to_distribute - stake_rent,
+                        item_data.stake_info.transient_seed_suffix_start,
+                    ),
+                );
+            }
+        }
+
+        if instructions.len() > 0 {
+            for chunk in instructions.chunks(INSTRUCTIONS_IN_TRANSACTION) {
+                let mut signers = vec![config.fee_payer.as_ref(), config.staker.as_ref()];
+                unique_signers!(signers);
+
+                let transaction = checked_transaction_with_signers(
+                    config,
+                    chunk,
+                    &signers,
+                )?;
+                send_transaction(config, transaction)?;
+            }
+            println!("The stake has been distributed successfully");
+            return Ok(())
+        }
+    }
+    Err(format!("No need for stake distibution: stake {}, liquidity {}, consume liquidity {}, threshold {}",
+        native_token::lamports_to_sol(active_lamports),
+        native_token::lamports_to_sol(stake_pool.total_lamports_liquidity),
+        consume_liquidity,
+        threshold,
+    ).into())
 }
 
 fn command_withdraw_stake_for_subsequent_removing_validator(
@@ -4312,7 +4437,7 @@ pub struct PoolValidatorsApiResponse {
 }
 
 // DTO for https://api.stakesolana.app/v1/pool-validators/{pname}
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Debug, Clone)]
 pub struct PoolValidatorsData {
     #[allow(dead_code)]
     name: String,
@@ -4590,36 +4715,17 @@ fn command_dao_strategy_distribute_community_tokens(
     config: &Config,
     stake_pool_address: &Pubkey,
 ) -> CommandResult {
-    let dao_state_dto_pubkey = DaoState::find_address(&spl_stake_pool::id(), stake_pool_address).0;
-    let dao_state_dto_account = config
-        .rpc_client
-        .get_account(&dao_state_dto_pubkey)?;
-
-    let dao_state = try_from_slice_unchecked::<DaoState>(dao_state_dto_account.data.as_slice())?;
-    if !dao_state.is_enabled {
+    if !get_dao_state(&config.rpc_client, stake_pool_address)? {
         return Err("Logic error: DAO is not enabled for the pool yet. You should enable it firstly.".into());
     }
-
     let community_token_dto_pubkey = CommunityToken::find_address(&spl_stake_pool::id(), stake_pool_address).0;
-    let community_token_dto_account = config
-        .rpc_client
-        .get_account(&community_token_dto_pubkey)?;
-    let community_token = try_from_slice_unchecked::<CommunityToken>(community_token_dto_account.data.as_slice())?;
+    let community_token = CommunityToken::get(&config.rpc_client, stake_pool_address)?;
 
     let community_tokens_counter_dto_pubkey = CommunityTokensCounter::find_address(&spl_stake_pool::id(), stake_pool_address).0;
-    let community_tokens_counter_dto_account = config
-        .rpc_client
-        .get_account(&community_tokens_counter_dto_pubkey)?;
-    let community_tokens_counter = try_from_slice_unchecked::<CommunityTokensCounter>(community_tokens_counter_dto_account.data.as_slice())?;    
+    let community_tokens_counter = CommunityTokensCounter::get(&config.rpc_client, stake_pool_address)?;
 
-    let community_token_staking_rewards_counter_dto_pubkey = CommunityTokenStakingRewardsCounter::find_address(&spl_stake_pool::id(), stake_pool_address).0;
-    let community_token_staking_rewards_counter_dto_account = config
-        .rpc_client
-        .get_account(&community_token_staking_rewards_counter_dto_pubkey)?;
-    let community_token_staking_rewards_counter = try_from_slice_unchecked::<CommunityTokenStakingRewardsCounter>(community_token_staking_rewards_counter_dto_account.data.as_slice())?;
-
+    let community_token_staking_rewards_counter = CommunityTokenStakingRewardsCounter::get(&config.rpc_client, stake_pool_address)?;
     let stake_pool = get_stake_pool(&config.rpc_client, stake_pool_address)?;
-
     let pool_withdraw_authority = find_withdraw_authority_program_address(&spl_stake_pool::id(), stake_pool_address).0;
 
     let mut instructions: Vec<Instruction> = vec![]; 
@@ -4666,14 +4772,21 @@ fn command_dao_strategy_distribute_community_tokens(
 
                 instructions.clear();
             }
-
             let community_token_staking_rewards = try_from_slice_unchecked::<CommunityTokenStakingRewards>(&account.data[..])?;
 
             let associated_pool_token_address = get_associated_token_address(community_token_staking_rewards.get_owner_wallet(), &stake_pool.pool_mint);
-            let associated_token_account = config.rpc_client.get_token_account(&associated_pool_token_address)?.unwrap();
+            let associated_token_account_res = config.rpc_client.get_token_account(&associated_pool_token_address);
+
+            if let Err(error) = associated_token_account_res {
+                eprintln!("Skipping {} wallet due to the following error {}", community_token_staking_rewards.get_owner_wallet(), error);
+                continue
+            }
+            let associated_token_account = associated_token_account_res?.unwrap();
+
             if associated_token_account.mint != stake_pool.pool_mint.to_string()
                 || associated_token_account.owner != community_token_staking_rewards.get_owner_wallet().to_string() {
-                return Err("Invalid ATA parameters".into());
+                    eprintln!("Invalid ATA parameters");
+                    continue
             }
         
             let pool_tokens_amount = spl_token::ui_amount_to_amount(associated_token_account.token_amount.ui_amount.unwrap(), associated_token_account.token_amount.decimals) as f64;
@@ -4707,7 +4820,10 @@ fn command_dao_strategy_distribute_community_tokens(
                                 )
                             )
                         }
-                        None => return Err("Couldn't calcualate how many community tokens should be minted".into()),
+                        None => {
+                            eprintln!("Couldn't calcualate how many community tokens should be minted");
+                            continue
+                        },
                     }
                 }
             } else {
@@ -4724,17 +4840,119 @@ fn command_dao_strategy_distribute_community_tokens(
                         )
                     )
                 } else {
-                    return Err("Pool amount cannot be a negative number".into());
+                    eprintln!("Pool amount cannot be a negative number");
+                    continue
                 }
             }
         }
     }
-
     if instructions.len() != 0 {
         let mut transaction = Transaction::new_with_payer(&instructions, Some(&config.fee_payer.pubkey()));
         let recent_blockhash = config.rpc_client.get_recent_blockhash()?.0;
         transaction.sign(&signers, recent_blockhash);
         send_transaction(config, transaction)?;
+    }
+
+    Ok(())
+}
+
+fn command_dao_strategy_mint_extra_community_tokens(
+    config: &Config,
+    stake_pool_address: &Pubkey,
+    to: &Pubkey,
+    amount: f64,
+) -> CommandResult {
+    if !get_dao_state(&config.rpc_client, stake_pool_address)? {
+        return Err("Logic error: DAO is not enabled for the pool yet. You should enable it firstly.".into());
+    }
+    let community_token_dto_pubkey = CommunityToken::find_address(&spl_stake_pool::id(), stake_pool_address).0;
+    let community_tokens_counter_dto_pubkey = CommunityTokensCounter::find_address(&spl_stake_pool::id(), stake_pool_address).0;
+    let community_token = CommunityToken::get(&config.rpc_client, stake_pool_address)?;
+    let community_tokens_counter = CommunityTokensCounter::get(&config.rpc_client, stake_pool_address)?; 
+    let community_token_staking_rewards_counter = CommunityTokenStakingRewardsCounter::get(&config.rpc_client, stake_pool_address)?;
+    let pool_withdraw_authority = find_withdraw_authority_program_address(&spl_stake_pool::id(), stake_pool_address).0;
+
+    let mut instructions: Vec<Instruction> = vec![]; 
+    let signers = vec![
+        config.manager.as_ref(),
+    ];
+
+    'outer: for current_account_group in CommunityTokenStakingRewardsCounter::ACCOUNT_GROUP_INITIAL_VALUE..=community_token_staking_rewards_counter.get_account().get_value() {
+        let current_epoch = config.rpc_client.get_epoch_info()?.epoch;
+
+        let bytes = CommunityTokenStakingRewardsBytes {
+            network_account_type: NetworkAccountType::CommunityTokenStakingRewards,
+            account_group: AccountGroup::new(current_account_group),
+            program_id: spl_stake_pool::id(),
+            stake_pool_address: stake_pool_address.clone()
+        }.try_to_vec()?;
+    
+        let rpc_programm_account_config = solana_client::rpc_config::RpcProgramAccountsConfig {
+            filters: Some(vec![
+                solana_client::rpc_filter::RpcFilterType::Memcmp(
+                    solana_client::rpc_filter::Memcmp {
+                        offset: 0,
+                        bytes: solana_client::rpc_filter::MemcmpEncodedBytes::Base58(bs58::encode(&bytes[..]).into_string()),
+                        encoding: None
+                    }
+                )
+            ]),
+            account_config: solana_client::rpc_config::RpcAccountInfoConfig {
+                encoding: Some(solana_account_decoder::UiAccountEncoding::Base64),
+                data_slice: None,
+                commitment: None
+            },
+            with_context: None
+    
+        };
+        let response = config.rpc_client.get_program_accounts_with_config(&spl_stake_pool::id(), rpc_programm_account_config)?;
+
+        for (account_pubkey, account) in response {
+            let community_token_staking_rewards = try_from_slice_unchecked::<CommunityTokenStakingRewards>(&account.data[..])?;
+            if community_token_staking_rewards.get_owner_wallet() == to {
+                let amount = spl_token::ui_amount_to_amount(amount, CommunityTokensCounter::DECIMALS);
+                match community_tokens_counter.get_dao_reserve_allowed_tokens_number(amount) {
+                    Some(0) => return Err(format!("EVS DAO Reserve max supply reached: {}", 
+                        spl_token::amount_to_ui_amount(CommunityTokensCounter::MAX_EVS_DAO_RESERVE_SUPPLY, CommunityTokensCounter::DECIMALS)).into()
+                    ),
+                    Some(num) => {
+                        if num < amount { 
+                            eprintln!("EVS Dao Reserve tokens counter is about to reach the max supply. Only {} tokens can be minted", 
+                                    spl_token::amount_to_ui_amount(num, CommunityTokensCounter::DECIMALS)
+                            )
+                        }
+                        instructions.push(
+                            spl_stake_pool::instruction::mint_community_token(
+                                &spl_stake_pool::id(),
+                                &stake_pool_address,
+                                &config.manager.pubkey(),
+                                community_token_staking_rewards.get_owner_wallet(),
+                                &pool_withdraw_authority,
+                                &get_associated_token_address(community_token_staking_rewards.get_owner_wallet(), &community_token.token_mint),
+                                &community_token.token_mint,
+                                &community_token_dto_pubkey,
+                                &community_tokens_counter_dto_pubkey,
+                                &account_pubkey,
+                                &spl_token::id(),
+                                num,
+                                current_epoch,
+                            )
+                        )
+                    }
+                    None => return Err("Couldn't calcualate how many community tokens should be minted".into()),
+                }
+                break 'outer
+            }
+        }
+    }
+   
+    if instructions.len() != 0 {
+        let mut transaction = Transaction::new_with_payer(&instructions, Some(&config.fee_payer.pubkey()));
+        let recent_blockhash = config.rpc_client.get_recent_blockhash()?.0;
+        transaction.sign(&signers, recent_blockhash);
+        send_transaction(config, transaction)?;
+    } else {
+        eprintln!("Wallet owner {} not found in the rewards list", to)
     }
 
     Ok(())
@@ -5846,6 +6064,30 @@ fn main() {
                     .required(true)
                     .help("Stake pool address."),
             )
+            .arg(
+                Arg::with_name("consume-liquidity")
+                    .long("consume-liquidity")
+                    .validator(is_parsable::<f64>)
+                    .value_name("CONSUME-LIQUIDITY")
+                    .takes_value(true)
+                    .help("Amount in SOL taken from liquidity for distribution"),
+            )
+            .arg(
+                Arg::with_name("threshold")
+                    .long("threshold")
+                    .validator(is_parsable::<f64>)
+                    .value_name("THRESHOLD")
+                    .takes_value(true)
+                    .help("Distribute stake only if it's greater than the threshold"),
+            )
+            .arg(
+                Arg::with_name("slots-before-epoch-end")
+                    .long("slots-before-epoch-end")
+                    .validator(is_parsable::<u64>)
+                    .value_name("SLOTS")
+                    .takes_value(true)
+                    .help("Distribute stake only if the number of slots left in the current epoch is less than this value"),
+            )
         )
         .subcommand(SubCommand::with_name("change-validators")
             .about("Take necessary validators and change stake pool`s validator list")
@@ -5951,6 +6193,13 @@ fn main() {
                     .takes_value(true)
                     .help("Account to receive the referral fees for deposits. \
                           Defaults to the token receiver."),
+            )
+            .arg(
+                Arg::with_name("use-old-referral-program")
+                    .long("use-old-referral-program")
+                    .takes_value(false)
+                    .requires("referer")
+                    .help("Use old referral program (v1) which applies to deposit fee"),
             )
         )
         .subcommand(SubCommand::with_name("dao-strategy-deposit-stake")
@@ -6269,6 +6518,36 @@ fn main() {
                     .takes_value(true)
                     .required(true)
                     .help("No fee deposit threshold."),
+            )
+        )
+        .subcommand(SubCommand::with_name("dao-strategy-mint-extra-community-tokens")
+            .about("Mint extra community tokens for those users who didn't receive them by mistake")
+            .arg(
+                Arg::with_name("pool")
+                    .index(1)
+                    .validator(is_pubkey)
+                    .value_name("POOL_ADDRESS")
+                    .takes_value(true)
+                    .required(true)
+                    .help("Stake pool address."),
+            )
+            .arg(
+                Arg::with_name("to")
+                    .index(2)
+                    .validator(is_pubkey)
+                    .value_name("TO")
+                    .takes_value(true)
+                    .required(true)
+                    .help("Address of the recipient "),
+            )
+            .arg(
+                    Arg::with_name("amount")
+                    .index(3)
+                    .validator(is_amount)
+                    .value_name("AMOUNT")
+                    .takes_value(true)
+                    .required(true)
+                    .help("Amount of Community tokens to mint"),
             )
         )
         .get_matches();
@@ -6674,8 +6953,11 @@ fn main() {
         }
         ("distribute-stake", Some(arg_matches)) => {
             let stake_pool_address = pubkey_of(arg_matches, "pool").unwrap();
+            let consume_liquidity = value_t!(arg_matches, "consume-liquidity", f64).unwrap_or_default();
+            let threshold = value_t!(arg_matches, "threshold", f64).unwrap_or_default();
+            let slots_before_epoch_end = value_t!(arg_matches, "slots-before-epoch-end", u64).unwrap_or_default();
 
-            command_distribute_stake(&config, &stake_pool_address)
+            command_distribute_stake(&config, &stake_pool_address, consume_liquidity, threshold, slots_before_epoch_end)
         }
         ("withdraw-stake-for-subsequent-removing-validator", Some(arg_matches)) => {
             let stake_pool_address = pubkey_of(arg_matches, "pool").unwrap();
@@ -6701,6 +6983,7 @@ fn main() {
             let referrer: Option<Pubkey> = pubkey_of(arg_matches, "referrer");
             let from = keypair_of(arg_matches, "from");
             let amount = value_t_or_exit!(arg_matches, "amount", f64);
+            let use_old_referral_program = arg_matches.is_present("use-old-referral-program");
             command_dao_strategy_deposit_sol(
                 &config,
                 &stake_pool_address,
@@ -6708,6 +6991,7 @@ fn main() {
                 &pool_token_receiver,
                 &referrer,
                 amount,
+                use_old_referral_program,
             )
         }
         ("dao-strategy-deposit-stake", Some(arg_matches)) => {
@@ -6841,7 +7125,13 @@ fn main() {
             let threshold = value_t_or_exit!(arg_matches, "threshold", u16);
 
             command_set_no_fee_deposit_threshold(&config, &stake_pool_address, threshold)
-        }         
+        }
+        ("dao-strategy-mint-extra-community-tokens", Some(arg_matches)) => {
+            let stake_pool_address = pubkey_of(arg_matches, "pool").unwrap();
+            let to = pubkey_of(arg_matches, "to").unwrap();
+            let amount = value_t_or_exit!(arg_matches, "amount", f64);
+            command_dao_strategy_mint_extra_community_tokens(&config, &stake_pool_address, &to, amount)
+        }
         _ => unreachable!(),
     }
     .map_err(|err| {

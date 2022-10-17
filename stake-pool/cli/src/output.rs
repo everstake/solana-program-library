@@ -619,8 +619,8 @@ impl From<(Pubkey, StakePool, ValidatorList, Pubkey, ReferrerList, Pubkey)> for 
 
 impl VerboseDisplay for ValidatorsData {
     fn write_str(&self, w: &mut dyn Write) -> Result {
-        write!(w, "name: {}, APY: {}, vote: {}, node: {}, stake: {}", 
-            self.name, self.apy, self.vote_pk, self.node_pk, self.total_active_stake)?;
+        write!(w, "name: {}, APY: {}, score: {}, vote: {}, node: {}, stake: {}", 
+            self.name, self.apy, self.score, self.vote_pk, self.node_pk, self.total_active_stake)?;
         if self.drop_reasons.is_some() {
             write!(w, " drop reasons: {:?}", self.drop_reasons.as_ref().unwrap())?;
         }

@@ -227,6 +227,9 @@ fn create_pda_account<'a>(
     }
 }
 
+
+
+
 /// Program state handler.
 pub struct Processor {}
 impl Processor {
@@ -1858,6 +1861,7 @@ impl Processor {
                 .ok_or(StakePoolError::CalculationFailure)?;
 
             let reward_lamports = total_lamports.saturating_sub(previous_lamports);
+            msg!("reward lamports: {}", reward_lamports);
 
             let epoch_fee = stake_pool
                     .calc_pool_tokens_epoch_fee(reward_lamports)
@@ -3412,13 +3416,8 @@ impl Processor {
         Ok(())
     }
 
-    /// Makes a deposit of a user sol in the StakePull reserve stake account, giving back 
-    /// the number of tokens calculated according to a specific strategy. 
-    /// Сhecks that there is an account required for dao strategy and changes the data on this account.
-    /// 
-    /// Processes [DaoStrategyDepositSol](enum.Instruction.html).
-    #[inline(never)] // needed to avoid stack size violation
-    fn process_dao_strategy_deposit_sol(
+    #[inline]
+    fn process_dao_strategy_deposit_sol_impl(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
         deposit_lamports: u64,
@@ -3620,10 +3619,73 @@ impl Processor {
     /// Makes a deposit of a user sol in the StakePull reserve stake account, giving back 
     /// the number of tokens calculated according to a specific strategy. 
     /// Сhecks that there is an account required for dao strategy and changes the data on this account.
+    /// 
+    /// Processes [DaoStrategyDepositSol](enum.Instruction.html).
+    #[inline(never)] // needed to avoid stack size violation
+    fn process_dao_strategy_deposit_sol(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        deposit_lamports: u64,
+    ) -> ProgramResult {
+        Self::process_dao_strategy_deposit_sol_impl(
+            program_id, 
+            accounts,
+            deposit_lamports,
+        )
+    }
+
+    /// Makes a deposit of a user sol in the StakePool reserve stake account, giving back 
+    /// the number of tokens calculated according to a specific strategy. 
+    /// Сhecks that there is an account required for dao strategy and changes the data on this account.
+    /// Check a whitelisted referral (Referral program v2)
+    /// 
+    /// Processes [DaoStrategyDepositSolWithReferrer2](enum.Instruction.html).
+    #[inline(never)] // needed to avoid stack size violation
+    fn process_dao_strategy_deposit_sol_with_referrer2(
+        program_id: &Pubkey,
+        accounts: &[AccountInfo],
+        deposit_lamports: u64,
+    ) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let stake_pool_info = next_account_info(account_info_iter)?;
+        let referrer_fee_info = account_info_iter.nth(6).ok_or(ProgramError::NotEnoughAccountKeys)?;
+        let referrer_list_dto_info = next_account_info(account_info_iter)?;
+
+        check_account_owner(stake_pool_info, program_id)?;
+
+        let stake_pool = try_from_slice_unchecked::<StakePool>(&stake_pool_info.data.borrow())?;
+        if !stake_pool.is_valid() {
+            return Err(StakePoolError::InvalidState.into());
+        }
+        stake_pool.check_referrer_list(
+            referrer_list_dto_info,
+            program_id,
+            stake_pool_info.key,
+        )?;
+        let mut referrer_list_data = referrer_list_dto_info.data.borrow_mut();
+        let (header, referrer_list) =
+            ReferrerListHeader::deserialize_vec(&mut referrer_list_data)?;
+        if !header.is_valid() {
+            return Err(StakePoolError::InvalidState.into());
+        }
+        if referrer_list.find::<Referrer>(referrer_fee_info.key.as_ref(), Referrer::memcmp_pubkey).is_none() {
+            return Err(StakePoolError::ReferrerNotFound.into());
+        }
+        Self::process_dao_strategy_deposit_sol_impl(
+            program_id,
+            [&accounts[..8], &accounts[9..]].concat().as_ref(), // skip the referrer list since we checked it's ok
+            deposit_lamports,
+        )
+    }
+
+    /// Makes a deposit of a user sol in the StakePool reserve stake account, giving back 
+    /// the number of tokens calculated according to a specific strategy. 
+    /// Сhecks that there is an account required for dao strategy and changes the data on this account.
     /// Pays the referral fee to a whitelisted referral and collect the metrics
     /// 
     /// Processes [DaoStrategyDepositSolWithReferrer](enum.Instruction.html).
     #[inline(never)] // needed to avoid stack size violation
+    #[allow(dead_code)]
     fn process_dao_strategy_deposit_sol_with_referrer(
         program_id: &Pubkey,
         accounts: &[AccountInfo],
@@ -3673,7 +3735,11 @@ impl Processor {
         stake_pool.check_reserve_stake(reserve_stake_account_info)?;
         stake_pool.check_manager_fee(manager_fee_info)?;
 
-        check_account_owner(referrer_list_dto_info, program_id)?;
+        stake_pool.check_referrer_list(
+            referrer_list_dto_info,
+            program_id,
+            stake_pool_info.key,
+        )?;
         let mut referrer_list_data = referrer_list_dto_info.data.borrow_mut();
         let (header, referrer_list) =
             ReferrerListHeader::deserialize_vec(&mut referrer_list_data)?;
@@ -5700,9 +5766,14 @@ impl Processor {
                 msg!("Instruction: RemoveReferrer");
                 Self::process_remove_referrer(program_id, accounts)
             }
-            StakePoolInstruction::DaoStrategyDepositSolWithReferrer(lamports) => {
+            StakePoolInstruction::DaoStrategyDepositSolWithReferrer(_lamports) => {
                 msg!("Instruction: DaoStrategyDepositSolWithReferrer");
-                Self::process_dao_strategy_deposit_sol_with_referrer(program_id, accounts, lamports)
+                // Self::process_dao_strategy_deposit_sol_with_referrer(program_id, accounts, lamports)
+                Err(StakePoolError::DeprecatedInstruction.into())
+            }
+            StakePoolInstruction::DaoStrategyDepositSolWithReferrer2(lamports) => {
+                msg!("Instruction: DaoStrategyDepositSolWithReferrer2");
+                Self::process_dao_strategy_deposit_sol_with_referrer2(program_id, accounts, lamports)
             }
             StakePoolInstruction::CreateMetricsDepositReferrerCounter => {
                 msg!("Instruction: CreateMetricsDepositReferrerCounter");
@@ -5777,6 +5848,7 @@ impl PrintProgramError for StakePoolError {
             StakePoolError::NonZeroTokenBalance => msg!("Error: Non zero token balance"),
             StakePoolError::ReferrerAlreadyAdded => msg!("Error: this referrer already exists in the referrer list"),
             StakePoolError::ReferrerNotFound => msg!("Error: this referrer not found in the referrer list"),
+            StakePoolError::DeprecatedInstruction => msg!("Error: this instruction is deprecated"),
         }
     }
 }

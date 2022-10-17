@@ -502,6 +502,26 @@ impl StakePool {
         }
     }
 
+        /// Check the referrer list is valid
+        pub fn check_referrer_list(
+            &self,
+            referrer_list_dto_info: &AccountInfo,
+            program_id: &Pubkey,
+            stake_pool_address: &Pubkey,
+        ) -> Result<(), ProgramError> {
+            let referrer_list_address = ReferrerList::find_address(program_id, stake_pool_address).0;
+            if *referrer_list_dto_info.key != referrer_list_address {
+                msg!(
+                    "Invalid referrer list provided, expected {}, received {}",
+                    referrer_list_address,
+                    referrer_list_dto_info.key
+                );
+                Err(StakePoolError::InvalidProgramAddress.into())
+            } else {
+                Ok(())
+            }
+        }
+
     /// Check if StakePool is actually initialized as a stake pool
     pub fn is_valid(&self) -> bool {
         self.account_type == AccountType::StakePool

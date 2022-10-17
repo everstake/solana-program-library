@@ -159,12 +159,17 @@ pub enum StakePoolError {
     /// Non zero token balance.
     #[error("NonZeroTokenBalance")]
     NonZeroTokenBalance,
+
+    // 45.
     /// ReferrerAlreadyAdded
     #[error("ReferrerAlreadyAdded")]
     ReferrerAlreadyAdded,
     /// ReferrerNotFound
     #[error("ReferrerNotFound")]
     ReferrerNotFound,
+    /// DeprecatedInstruction
+    #[error("DeprecatedInstruction")]
+    DeprecatedInstruction,
 }
 impl From<StakePoolError> for ProgramError {
     fn from(e: StakePoolError) -> Self {

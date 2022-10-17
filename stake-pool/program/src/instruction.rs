@@ -655,13 +655,13 @@ pub enum StakePoolInstruction {
     ///   9  `[w]` Account for storing metrics of deposit sol with refferer transaction
     ///  10. `[w]` Metrics counter for deposit sol transactions (dto account)
     ///  11. `[w]` Pool token mint account
-    ///  11. `[]` System program account
-    ///  12. `[]` Rent sysvar   
-    ///  13. `[]` Token program id
-    ///  14. `[w]` Account for storing community token staking rewards dto
-    ///  15. `[s]` Wallet owner
-    ///  16. `[]` Account for storing community token dto
-    ///  17. `[s]` (Optional) Stake pool sol deposit authority.
+    ///  12. `[]` System program account
+    ///  13. `[]` Rent sysvar   
+    ///  14. `[]` Token program id
+    ///  15. `[w]` Account for storing community token staking rewards dto
+    ///  16. `[s]` Wallet owner
+    ///  17. `[]` Account for storing community token dto
+    ///  18. `[s]` (Optional) Stake pool sol deposit authority.
     DaoStrategyDepositSolWithReferrer(u64),
 
     ///   Remove a referrer from the pool's referrer list
@@ -721,6 +721,30 @@ pub enum StakePoolInstruction {
     /// 
     /// userdata: threshold
     SetNoFeeDepositThreshold(u16),
+
+    ///   Deposit SOL directly into the pool's reserve account with existing DAO`s community tokens strategy. The output is a "pool" token
+    ///   representing ownership into the pool. Inputs are converted to the current ratio.
+    ///   This instructions is a part of our Referral program v2, where referrer fee is paid from the manager/epoch fee, and must include a whitelisted referral.
+    ///
+    ///   0. `[w]` Stake pool
+    ///   1. `[]` Stake pool withdraw authority
+    ///   2. `[w]` Reserve stake account, to deposit SOL
+    ///   3. `[s]` Account providing the lamports to be deposited into the pool
+    ///   4. `[w]` User account to receive pool tokens
+    ///   5  `[]` User account to hold DAO`s community tokens
+    ///   6. `[w]` Account to receive fee tokens
+    ///   7. `[]` Referrer id (their SOL account, fee may be paid in sol or esol later on)
+    ///   8. `[]` Referrer list dto account
+    ///   9. `[w]` Pool token mint account
+    ///  10. `[]` System program account  
+    ///  11. `[]` Token program id
+    ///  12. `[w]` Account for storing community token staking rewards dto
+    ///  13. `[s]` Wallet owner
+    ///  14. `[]` Account for storing community token dto
+    ///  15. `[s]` (Optional) Stake pool sol deposit authority.
+    //
+    // Index 39 
+    DaoStrategyDepositSolWithReferrer2(u64),
 }
 
 /// Creates an 'initialize' instruction.
@@ -1983,6 +2007,52 @@ pub fn dao_strategy_deposit_sol_with_referrer(
 }
 
 /// Creates instructions required to deposit SOL directly into a stake pool with existing DAO`s community tokens strategy.
+/// This instructions is a part of our Referral program v2 and must include a whitelisted referral.
+pub fn dao_strategy_deposit_sol_with_referrer2(
+    program_id: &Pubkey,
+    stake_pool: &Pubkey,
+    stake_pool_withdraw_authority: &Pubkey,
+    reserve_stake_account: &Pubkey,
+    lamports_from: &Pubkey,
+    pool_tokens_to: &Pubkey,
+    dao_community_tokens_to: &Pubkey,
+    manager_fee_account: &Pubkey,
+    referrer_sol_account: &Pubkey,
+    referrer_list_account: &Pubkey,
+    pool_mint: &Pubkey,
+    token_program_id: &Pubkey,
+    community_token_staking_rewards_dto: &Pubkey,
+    owner_wallet: &Pubkey,
+    community_token_dto_pubkey: &Pubkey,
+    amount: u64,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(*stake_pool, false),
+        AccountMeta::new_readonly(*stake_pool_withdraw_authority, false),
+        AccountMeta::new(*reserve_stake_account, false),
+        AccountMeta::new(*lamports_from, true),
+        AccountMeta::new(*pool_tokens_to, false),
+        AccountMeta::new_readonly(*dao_community_tokens_to, false),
+        AccountMeta::new(*manager_fee_account, false),
+        AccountMeta::new(*referrer_sol_account, false),
+        AccountMeta::new_readonly(*referrer_list_account, false),
+        AccountMeta::new(*pool_mint, false),
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(*token_program_id, false),
+        AccountMeta::new(*community_token_staking_rewards_dto, false),
+        AccountMeta::new_readonly(*owner_wallet, true),
+        AccountMeta::new_readonly(*community_token_dto_pubkey, false),
+    ];
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: StakePoolInstruction::DaoStrategyDepositSolWithReferrer2(amount)
+            .try_to_vec()
+            .unwrap(),
+    }
+}
+
+/// Creates instructions required to deposit SOL directly into a stake pool with existing DAO`s community tokens strategy.
 /// The difference with `deposit_sol()` is that a deposit
 /// authority must sign this instruction.
 pub fn dao_strategy_deposit_sol_with_authority(
@@ -2079,6 +2149,57 @@ pub fn dao_strategy_deposit_sol_with_authority_and_referrer(
         program_id: *program_id,
         accounts,
         data: StakePoolInstruction::DaoStrategyDepositSolWithReferrer(amount)
+            .try_to_vec()
+            .unwrap(),
+    }
+}
+
+/// Creates instructions required to deposit SOL directly into a stake pool with existing DAO`s community tokens strategy.
+/// This instructions is a part of our Referral program and must include a whitelisted referral.
+/// The difference with `deposit_sol_with_referrer2()` is that a deposit
+/// authority must sign this instruction.
+/// 
+pub fn dao_strategy_deposit_sol_with_authority_and_referrer2(
+    program_id: &Pubkey,
+    stake_pool: &Pubkey,
+    sol_deposit_authority: &Pubkey,
+    stake_pool_withdraw_authority: &Pubkey,
+    reserve_stake_account: &Pubkey,
+    lamports_from: &Pubkey,
+    pool_tokens_to: &Pubkey,
+    dao_community_tokens_to: &Pubkey,
+    manager_fee_account: &Pubkey,
+    referrer_sol_account: &Pubkey,
+    referrer_list_account: &Pubkey,
+    pool_mint: &Pubkey,
+    token_program_id: &Pubkey,
+    community_token_staking_rewards_dto: &Pubkey,
+    owner_wallet: &Pubkey,
+    community_token_dto_pubkey: &Pubkey,
+    amount: u64,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(*stake_pool, false),
+        AccountMeta::new_readonly(*stake_pool_withdraw_authority, false),
+        AccountMeta::new(*reserve_stake_account, false),
+        AccountMeta::new(*lamports_from, true),
+        AccountMeta::new(*pool_tokens_to, false),
+        AccountMeta::new_readonly(*dao_community_tokens_to, false),
+        AccountMeta::new(*manager_fee_account, false),
+        AccountMeta::new(*referrer_sol_account, false),
+        AccountMeta::new_readonly(*referrer_list_account, false),
+        AccountMeta::new(*pool_mint, false),
+        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(*token_program_id, false),
+        AccountMeta::new(*community_token_staking_rewards_dto, false),
+        AccountMeta::new_readonly(*owner_wallet, true),
+        AccountMeta::new_readonly(*community_token_dto_pubkey, false),
+        AccountMeta::new_readonly(*sol_deposit_authority, true),
+    ];
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data: StakePoolInstruction::DaoStrategyDepositSolWithReferrer2(amount)
             .try_to_vec()
             .unwrap(),
     }
