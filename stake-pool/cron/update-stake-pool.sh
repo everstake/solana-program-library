@@ -3,4 +3,4 @@
 /home/stakepool/solana-program-library/target/release/spl-stake-pool update EEx8JxE1hhpnQw1fLwMY1aLsYdCcphZyrYC3SLSjvx5R >> /home/stakepool/cron/update-stake-pool.log "$@" >> /home/stakepool/cron/update-stake-pool.log 2>> /home/stakepool/cron/update-stake-pool.log
 solana config set --url devnet
 /home/stakepool/solana-program-library/target/release/spl-stake-pool update EEx8JxE1hhpnQw1fLwMY1aLsYdCcphZyrYC3SLSjvx5R >> /home/stakepool/cron/update-stake-pool.log "$@" >> /home/stakepool/cron/update-stake-pool.log 2>> /home/stakepool/cron/update-stake-pool.log
-solana confg set --url testnet
+solana config set --url testnet
