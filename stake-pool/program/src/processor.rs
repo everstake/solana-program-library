@@ -2924,6 +2924,42 @@ impl Processor {
         Ok(())
     }
 
+    #[inline(never)]
+    fn process_withdraw_from_reserve(_program_id: &Pubkey, accounts: &[AccountInfo], amount_to_withdraw: u64) -> ProgramResult {
+        let account_info_iter = &mut accounts.iter();
+        let stake_pool_info = next_account_info(account_info_iter)?;
+        let staker_info = next_account_info(account_info_iter)?;
+        let reserve_stake_info = next_account_info(account_info_iter)?;
+        let withdraw_authority_info = next_account_info(account_info_iter)?;
+        let recipient_acc_info = next_account_info(account_info_iter)?;
+        let clock_info = next_account_info(account_info_iter)?;
+        let stake_history_info = next_account_info(account_info_iter)?;
+        let stake_program_info = next_account_info(account_info_iter)?;
+
+        let stake_pool = try_from_slice_unchecked::<StakePool>(&stake_pool_info.data.borrow())?;
+        if !stake_pool.is_valid() {
+            msg!("Expected valid stake pool");
+            return Err(StakePoolError::InvalidState.into());
+        }
+
+        stake_pool.check_staker(staker_info)?;
+
+        Self::stake_withdraw(
+            stake_pool_info.key,
+            reserve_stake_info.clone(),
+            withdraw_authority_info.clone(),
+            AUTHORITY_WITHDRAW,
+            stake_pool.stake_withdraw_bump_seed,
+            recipient_acc_info.clone(),
+            clock_info.clone(),
+            stake_history_info.clone(),
+            stake_program_info.clone(),
+            amount_to_withdraw,
+        )?;
+
+        Ok(())
+    }
+
     /// Changes the StakePool staker.
     /// Сan only be performed by the StakePool manager or staker.
     /// 
@@ -5831,6 +5867,10 @@ impl Processor {
             StakePoolInstruction::SetTreasuryFeeAccount() => {
                 msg!("Instruction: SetTreasuryFeeAccount");
                 Self::process_set_treasury_fee_account(program_id, accounts)
+            }
+            StakePoolInstruction::WithdrawFromReserve(amount_to_withdraw) => {
+                msg!("Instruction: WithdrawFromReserve");
+                Self::process_withdraw_from_reserve(program_id, accounts, amount_to_withdraw)
             }
         }
     }

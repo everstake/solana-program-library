@@ -273,7 +273,7 @@ impl Display for CliStakePool {
     }
 }
 
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CliDaoDetails {
     pub community_token: String,
@@ -310,7 +310,7 @@ impl VerboseDisplay for CliDaoDetails {
     }    
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CliStakePoolDetails {
     pub reserve_stake_account_address: String,
@@ -446,7 +446,7 @@ impl VerboseDisplay for CliStakePoolDetails {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CliStakePoolStakeAccountInfo {
     pub vote_account_address: String,

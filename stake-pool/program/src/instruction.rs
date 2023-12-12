@@ -754,6 +754,19 @@ pub enum StakePoolInstruction {
     ///
     /// userdata: threshold
     SetTreasuryFeeAccount(),
+
+    ///   (Staker only) Withdraw money from reserve stake account
+    ///
+    ///   0. `[w]` Stake pool
+    ///   1. `[s]` Staker
+    ///   2. `[w]` Reserve stake account
+    ///   3. `[]` Stake pool withdraw authority
+    ///   4. `[w]` User account to receive lamports
+    ///   5. `[]` Clock sysvar
+    ///   6. '[]' Stake history sysvar
+    ///   7. `[]` Stake program
+    ///   8. `[]` System program
+    WithdrawFromReserve(u64),
 }
 
 /// Creates an 'initialize' instruction.
@@ -2795,5 +2808,36 @@ pub fn update_token_metadata(
         }
             .try_to_vec()
             .unwrap(),
+    }
+}
+
+/// Creates `WithdrawFromReserve` instruction
+pub fn withdraw_from_reserve(
+    program_id: &Pubkey,
+    stake_pool: &Pubkey,
+    staker: &Pubkey,
+    reserve: &Pubkey,
+    stake_pool_withdraw: &Pubkey,
+    receiver: &Pubkey,
+    amount: u64,
+) -> Instruction {
+    let accounts = vec![
+        AccountMeta::new(*stake_pool, false),
+        AccountMeta::new_readonly(*staker, true),
+        AccountMeta::new(*reserve, false),
+        AccountMeta::new_readonly(*stake_pool_withdraw, false),
+        AccountMeta::new(*receiver, false),
+        AccountMeta::new_readonly(sysvar::clock::id(), false),
+        AccountMeta::new_readonly(sysvar::stake_history::id(), false),
+        AccountMeta::new_readonly(stake::program::id(), false),
+        AccountMeta::new_readonly(system_program::id(), false),
+    ];
+    let data = StakePoolInstruction::WithdrawFromReserve(amount)
+        .try_to_vec()
+        .unwrap();
+    Instruction {
+        program_id: *program_id,
+        accounts,
+        data,
     }
 }

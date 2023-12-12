@@ -64,6 +64,7 @@ use {
     chrono::{DateTime, NaiveDateTime, Utc, Datelike},
 };
 
+use solana_program::native_token::lamports_to_sol;
 // use instruction::create_associated_token_account once ATA 1.0.5 is released
 #[allow(deprecated)]
 use spl_associated_token_account::create_associated_token_account;
@@ -2536,7 +2537,6 @@ fn command_list(config: &Config, stake_pool_address: &Pubkey) -> CommandResult {
 
     let total_liquidity_lamports = stake_pool.total_lamports_liquidity;
 
-
     let mut dao_details = None;
     let dao_state = get_dao_state(&config.rpc_client, stake_pool_address).unwrap_or_default();
     if dao_state {
@@ -4901,6 +4901,51 @@ fn command_dao_strategy_distribute_community_tokens(
     Ok(())
 }
 
+fn command_withdraw_from_reserve(
+    config: &Config,
+    stake_pool_address: &Pubkey,
+    recipients: &str,
+) -> CommandResult {
+    let stake_pool = get_stake_pool(&config.rpc_client, stake_pool_address)?;
+
+    let withdraw_auth = find_withdraw_authority_program_address(&spl_stake_pool::id(), stake_pool_address).0;
+
+    let mut signers = vec![config.fee_payer.as_ref(), config.staker.as_ref()];
+    unique_signers!(signers);
+
+    let file = std::fs::File::open(recipients)?;
+
+    let mut rdr = csv::Reader::from_reader(file);
+
+    for record in rdr.records() {
+        let record = record?;
+
+        let recipient = Pubkey::from_str(&record[0]).unwrap();
+        let amount = record[1].parse::<u64>().unwrap();
+
+        println!("Sending {}_SOL to {}", amount, recipient);
+
+        let transaction = checked_transaction_with_signers(
+            config,
+            &[
+                spl_stake_pool::instruction::withdraw_from_reserve(
+                    &spl_stake_pool::id(),
+                    stake_pool_address,
+                    &stake_pool.staker,
+                    &stake_pool.reserve_stake,
+                    &withdraw_auth,
+                    &recipient,
+                    amount,
+                ),
+            ],
+            &signers,
+        )?;
+        send_transaction(config, transaction)?;
+    }
+
+    Ok(())
+}
+
 fn command_dao_strategy_mint_extra_community_tokens(
     config: &Config,
     stake_pool_address: &Pubkey,
@@ -6607,6 +6652,26 @@ fn main() {
                     .help("Amount of Community tokens to mint"),
             )
         )
+        .subcommand(SubCommand::with_name("withdraw-from-reserve")
+            .about("Withdraw SOL from the stake pool's reserve account")
+            .arg(
+                Arg::with_name("pool")
+                    .index(1)
+                    .validator(is_pubkey)
+                    .value_name("POOL_ADDRESS")
+                    .takes_value(true)
+                    .required(true)
+                    .help("Stake pool address."),
+            )
+            .arg(
+                Arg::with_name("recipients")
+                    .index(2)
+                    .value_name("RECIPIENTS")
+                    .takes_value(true)
+                    .required(true)
+                    .help("CSV file with recipients and amounts"),
+            )
+        )
         .get_matches();
 
     let mut wallet_manager = None;
@@ -7192,6 +7257,11 @@ fn main() {
             let to = pubkey_of(arg_matches, "to").unwrap();
             let amount = value_t_or_exit!(arg_matches, "amount", f64);
             command_dao_strategy_mint_extra_community_tokens(&config, &stake_pool_address, &to, amount)
+        }
+        ("withdraw-from-reserve", Some(arg_matches)) => {
+            let stake_pool_address = pubkey_of(arg_matches, "pool").unwrap();
+            let recipients = arg_matches.value_of("recipients").unwrap();
+            command_withdraw_from_reserve(&config, &stake_pool_address, recipients)
         }
         _ => unreachable!(),
     }
