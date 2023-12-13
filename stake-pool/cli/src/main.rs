@@ -4925,22 +4925,48 @@ fn command_withdraw_from_reserve(
 
         println!("Sending {}_SOL to {}", amount, recipient);
 
-        let transaction = checked_transaction_with_signers(
-            config,
-            &[
-                spl_stake_pool::instruction::withdraw_from_reserve(
-                    &spl_stake_pool::id(),
-                    stake_pool_address,
-                    &stake_pool.staker,
-                    &stake_pool.reserve_stake,
-                    &withdraw_auth,
-                    &recipient,
-                    amount,
-                ),
-            ],
-            &signers,
-        )?;
-        send_transaction(config, transaction)?;
+        let mut sent = false;
+
+        while sent != true {
+            let transaction = checked_transaction_with_signers(
+                config,
+                &[
+                    spl_stake_pool::instruction::withdraw_from_reserve(
+                        &spl_stake_pool::id(),
+                        stake_pool_address,
+                        &stake_pool.staker,
+                        &stake_pool.reserve_stake,
+                        &withdraw_auth,
+                        &recipient,
+                        amount,
+                    ),
+                ],
+                &signers,
+            );
+
+            match transaction {
+                Ok(transaction) => {
+                    let send_result = send_transaction(config, transaction);
+
+                    match send_result {
+                        Ok(_) => {
+                            sent = true;
+                        }
+                        Err(e) => {
+                            println!("Could not send TX: {}", e);
+                            println!("Sleep...");
+                            std::thread::sleep(std::time::Duration::from_secs(10));
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("Could not create TX: {}", e);
+                    println!("Sleep...");
+                    std::thread::sleep(std::time::Duration::from_secs(10));
+                }
+            }
+        }
+        std::thread::sleep(std::time::Duration::from_secs(2));
     }
 
     Ok(())
